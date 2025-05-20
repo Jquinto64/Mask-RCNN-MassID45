@@ -248,7 +248,7 @@ class SimpleTrainer(TrainerBase):
         data_loader,
         optimizer,
         gather_metric_period=1,
-        zero_grad_before_forward=False,
+        zero_grad_before_forward=True,
         async_write_metrics=False,
     ):
         """
@@ -446,9 +446,9 @@ class AMPTrainer(SimpleTrainer):
         data_loader,
         optimizer,
         gather_metric_period=1,
-        zero_grad_before_forward=False,
+        zero_grad_before_forward=True,
         grad_scaler=None,
-        precision: torch.dtype = torch.float16,
+        precision=True,
         log_grad_scaler: bool = False,
         async_write_metrics=False,
     ):
@@ -490,7 +490,7 @@ class AMPTrainer(SimpleTrainer):
 
         if self.zero_grad_before_forward:
             self.optimizer.zero_grad()
-        with autocast(dtype=self.precision):
+        with autocast(self.precision):
             loss_dict = self.model(data)
             if isinstance(loss_dict, torch.Tensor):
                 losses = loss_dict

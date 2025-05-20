@@ -6,10 +6,10 @@ from typing import List, Optional, Union
 import torch
 
 from detectron2.config import configurable
+from detectron2.structures import PolygonMasks
 
 from . import detection_utils as utils
 from . import transforms as T
-from detectron2.structures import PolygonMasks
 
 """
 This file contains the default mapping that's applied to "dataset dicts".
@@ -134,6 +134,7 @@ class DatasetMapper:
         )
         if not instances.has('gt_masks'):  # this is to avoid empty annotation
             instances.gt_masks = PolygonMasks([])
+        
         # After transforms such as cropping are applied, the bounding box may no longer
         # tightly bound the object. As an example, imagine a triangle object
         # [(0,0), (2,0), (0,2)] cropped by a box [(1,0),(2,2)] (XYXY format). The tight

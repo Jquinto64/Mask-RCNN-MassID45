@@ -23,7 +23,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 import detectron2.data.transforms as T
 from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import CfgNode, LazyConfig
+from detectron2.config import CfgNode, LazyConfig, instantiate
 from detectron2.data import (
     MetadataCatalog,
     build_detection_test_loader,
@@ -124,7 +124,7 @@ Run on multiple machines:
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
     # so that users are aware of orphan processes by seeing the port occupied.
-    port = 2**15 + 2**14 + hash(os.getuid() if sys.platform != "win32" else 1) % 2**14
+    port = 2 ** 15 + 2 ** 14 + hash(os.getuid() if sys.platform != "win32" else 1) % 2 ** 14
     parser.add_argument(
         "--dist-url",
         default="tcp://127.0.0.1:{}".format(port),
@@ -257,9 +257,9 @@ class DefaultPredictor:
 
     Compared to using the model directly, this class does the following additions:
 
-    1. Load checkpoint from `cfg.MODEL.WEIGHTS`.
-    2. Always take BGR image as the input and apply conversion defined by `cfg.INPUT.FORMAT`.
-    3. Apply resizing defined by `cfg.INPUT.{MIN,MAX}_SIZE_TEST`.
+    1. Load checkpoint from the weights specified in config (cfg.MODEL.WEIGHTS).
+    2. Always take BGR image as the input and apply format conversion internally.
+    3. Apply resizing defined by the config (`cfg.INPUT.{MIN,MAX}_SIZE_TEST`).
     4. Take one input image and produce a single output, instead of a batch.
 
     This is meant for simple demo purposes, so it does the above steps automatically.
@@ -269,7 +269,8 @@ class DefaultPredictor:
 
     Attributes:
         metadata (Metadata): the metadata of the underlying dataset, obtained from
-            cfg.DATASETS.TEST.
+            test dataset name in the config.
+
 
     Examples:
     ::
@@ -279,23 +280,43 @@ class DefaultPredictor:
     """
 
     def __init__(self, cfg):
-        self.cfg = cfg.clone()  # cfg can be modified by model
-        self.model = build_model(self.cfg)
+        """
+        Args:
+            cfg: a yacs CfgNode or a omegaconf dict object.
+        """
+        if isinstance(cfg, CfgNode):
+            self.cfg = cfg.clone()  # cfg can be modified by model
+            self.model = build_model(self.cfg)
+            if len(cfg.DATASETS.TEST):
+                test_dataset = cfg.DATASETS.TEST[0]
+
+            checkpointer = DetectionCheckpointer(self.model)
+            checkpointer.load(cfg.MODEL.WEIGHTS)
+
+            self.aug = T.ResizeShortestEdge(
+                [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], 
+                cfg.INPUT.MAX_SIZE_TEST,
+                interp=Image.BILINEAR
+            )
+
+            self.input_format = cfg.INPUT.FORMAT
+        else:  # new LazyConfig
+            self.cfg = cfg
+            self.model = instantiate(cfg.model)
+            test_dataset = OmegaConf.select(cfg, "dataloader.test.dataset.names", default=None)
+            if isinstance(test_dataset, (list, tuple)):
+                test_dataset = test_dataset[0]
+
+            checkpointer = DetectionCheckpointer(self.model)
+            checkpointer.load(OmegaConf.select(cfg, "train.init_checkpoint", default=""))
+
+            mapper = instantiate(cfg.dataloader.test.mapper)
+            self.aug = mapper.augmentations
+            self.input_format = mapper.image_format
+
         self.model.eval()
-        if len(cfg.DATASETS.TEST):
-            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
-
-        checkpointer = DetectionCheckpointer(self.model)
-        checkpointer.load(cfg.MODEL.WEIGHTS)
-
-        self.aug = T.ResizeShortestEdge(
-            [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], 
-            cfg.INPUT.MAX_SIZE_TEST,
-            interp = Image.BILINEAR # Resize using default method only
-
-        )
-
-        self.input_format = cfg.INPUT.FORMAT
+        if test_dataset:
+            self.metadata = MetadataCatalog.get(test_dataset)
         assert self.input_format in ["RGB", "BGR"], self.input_format
 
     def __call__(self, original_image):
@@ -314,12 +335,10 @@ class DefaultPredictor:
                 # whether the model expects BGR inputs or RGB
                 original_image = original_image[:, :, ::-1]
             height, width = original_image.shape[:2]
-            image = self.aug.get_transform(original_image).apply_image(original_image)
+            image = self.aug(T.AugInput(original_image)).apply_image(original_image)
             image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
-            image.to(self.cfg.MODEL.DEVICE)
 
             inputs = {"image": image, "height": height, "width": width}
-
             predictions = self.model([inputs])[0]
             return predictions
 

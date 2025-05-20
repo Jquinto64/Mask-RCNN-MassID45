@@ -2,17 +2,22 @@ import detectron2.data.transforms as T
 from detectron2.config.lazy import LazyCall as L
 from detectron2.layers.batch_norm import NaiveSyncBatchNorm
 from detectron2.solver import WarmupParamScheduler
-from fvcore.common.param_scheduler import MultiStepParamScheduler
+from fvcore.common.param_scheduler import MultiStepParamScheduler, CosineParamScheduler
+from PIL import Image
 
 from ..common.data.coco import dataloader
 from ..common.models.mask_rcnn_fpn import model
-from ..common.optim import SGD as optimizer
+from ..common.optim import AdamW as optimizer
 from ..common.train import train
 
 # train from scratch
-train.init_checkpoint = ""
+# train.init_checkpoint = "/h/jquinto/Mask-RCNN/model_final_f96b26.pkl" # R101
+# train.init_checkpoint = "/h/jquinto/Mask-RCNN/model_final_f1362d.pkl" # RegNetX
+train.init_checkpoint = "/h/jquinto/Mask-RCNN/model_final_14d201.pkl" # R50 model
 train.amp.enabled = True
 train.ddp.fp16_compression = True
+train.checkpointer=dict(period=4885, max_to_keep=100)  # options for PeriodicCheckpointer
+train.eval_period=100000
 model.backbone.bottom_up.freeze_at = 0
 
 # SyncBN
@@ -41,32 +46,54 @@ model.roi_heads.box_head.fc_dims = [1024]
 # https://github.com/tensorflow/tpu/blob/b24729de804fdb751b06467d3dce0637fa652060/models/official/detection/utils/input_utils.py#L127  # noqa: E501, B950
 image_size = 1024
 dataloader.train.mapper.augmentations = [
-    L(T.ResizeScale)(
-        min_scale=0.1, max_scale=2.0, target_height=image_size, target_width=image_size
-    ),
-    L(T.FixedSizeCrop)(crop_size=(image_size, image_size)),
     L(T.RandomFlip)(horizontal=True),
+    L(T.RandomRotation)(angle=[0, 90, 180, 270], sample_style = 'choice'),
+    L(T.RandomBrightness)(intensity_min=0.85, intensity_max=1.15),
+    L(T.RandomContrast)(intensity_min=0.9, intensity_max=1.1),
+    L(T.RandomSaturation)(intensity_min=0.85, intensity_max=1.15),
+    L(T.ResizeShortestEdge)(short_edge_length=(image_size, image_size), max_size = image_size, sample_style = 'choice', interp=Image.BILINEAR),
 ]
 
 # recompute boxes due to cropping
 dataloader.train.mapper.recompute_boxes = True
 
 # larger batch-size.
-dataloader.train.total_batch_size = 64
+dataloader.train.total_batch_size = 8
 
-# Equivalent to 100 epochs.
-# 100 ep = 184375 iters * 64 images/iter / 118000 images/ep
-train.max_iter = 184375
+train.max_iter = 15000
 
-lr_multiplier = L(WarmupParamScheduler)(
-    scheduler=L(MultiStepParamScheduler)(
-        values=[1.0, 0.1, 0.01],
-        milestones=[163889, 177546],
-        num_updates=train.max_iter,
-    ),
-    warmup_length=500 / train.max_iter,
-    warmup_factor=0.067,
+def cosine_lr_scheduler(
+    start_value,
+    end_value,
+    num_updates,
+    warmup_steps,
+    warmup_method="linear",
+    warmup_factor=0.001,
+):
+    
+    # define cosine scheduler
+    scheduler = L(CosineParamScheduler)(
+        start_value=start_value,
+        end_value=end_value,
+    )
+
+    # wrap with warmup scheduler
+    return L(WarmupParamScheduler)(
+        scheduler=scheduler,
+        warmup_length=warmup_steps / num_updates,
+        warmup_method=warmup_method,
+        warmup_factor=warmup_factor,
+    )
+
+BASE_LR = 5e-5
+# define cosine scheduler
+lr_multiplier = cosine_lr_scheduler(
+    start_value=1,
+    end_value=0.0001,
+    num_updates=int(train.max_iter),
+    warmup_steps=int(0.3*train.max_iter),
+    warmup_method="linear",
+    warmup_factor=0.001
 )
-
-optimizer.lr = 0.1
-optimizer.weight_decay = 4e-5
+optimizer.lr = BASE_LR
+optimizer.weight_decay = 0.05
