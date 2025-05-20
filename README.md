@@ -12,6 +12,26 @@ It supports a number of computer vision research projects and production applica
 </div>
 <br>
 
+## MassID45 Instructions
+1. First download the MS-COCO pretrained R50 checkpoint using
+```bash
+wget https://dl.fbaipublicfiles.com/detectron2/new_baselines/mask_rcnn_R_50_FPN_400ep_LSJ/42019571/model_final_14d201.pkl
+```
+
+2. Make any desired modifications to the data augmentations and training hyperparameters using `configs/new_baselines/mask_rcnn_R_50_FPN_100ep_LSJ.py`
+
+3. Modify the  `--dataset_path` argument in `train.sh` to reflect the location of the MassID45 training data. Then run the training script with 
+```bash
+sbatch train.sh
+```
+Outputs will be saved in the folder specified by `train.output_dir`.
+
+4.  Replace `--dataset_img_path` and `--dataset_json_path` in `sahi_inference_256_datasets_v2.sh` with the locations of the MassID45 validation or testing data, respectively, then run inference with: 
+```bash
+sbatch sahi_inference.sh
+```
+Results will appear in the `runs/predict` folder under the name specified by the `--exp_name` argument.
+
 ## Learn More about Detectron2
 
 * Includes new capabilities such as panoptic segmentation, Densepose, Cascade R-CNN, rotated bounding boxes, PointRend,

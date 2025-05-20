@@ -9,13 +9,11 @@ from detectron2.data import (
     get_detection_dataset_dicts,
 )
 from detectron2.evaluation import COCOEvaluator
-from detectron2.data.datasets import register_coco_instances
-from PIL import Image
 
 dataloader = OmegaConf.create()
 
 dataloader.train = L(build_detection_train_loader)(
-    dataset=L(get_detection_dataset_dicts)(names="lifeplan_train", filter_empty=False), # CHANGE FOR LIFEPLAN
+    dataset=L(get_detection_dataset_dicts)(names="coco_2017_train"),
     mapper=L(DatasetMapper)(
         is_train=True,
         augmentations=[
@@ -34,11 +32,11 @@ dataloader.train = L(build_detection_train_loader)(
 )
 
 dataloader.test = L(build_detection_test_loader)(
-    dataset=L(get_detection_dataset_dicts)(names="lifeplan_valid", filter_empty=False), # CHANGE FOR LIFEPLAN
+    dataset=L(get_detection_dataset_dicts)(names="coco_2017_val", filter_empty=False),
     mapper=L(DatasetMapper)(
         is_train=False,
         augmentations=[
-            L(T.ResizeShortestEdge)(short_edge_length=1024, max_size=1024, interp=Image.BILINEAR),
+            L(T.ResizeShortestEdge)(short_edge_length=1024, max_size=1024),
         ],
         image_format="${...train.mapper.image_format}",
     ),

@@ -28,6 +28,8 @@ from detectron2.engine import (
 from detectron2.engine.defaults import create_ddp_model
 from detectron2.evaluation import inference_on_dataset, print_csv_format
 from detectron2.utils import comm
+import os
+import random 
 
 logger = logging.getLogger("detectron2")
 
@@ -109,8 +111,35 @@ def do_train(args, cfg):
         start_iter = 0
     trainer.train(start_iter, cfg.train.max_iter)
 
+from detectron2.data.datasets import register_coco_instances
+
+def register_custom_coco_dataset(args) -> None:
+   dataset_path = args.dataset_path
+   exp_id = args.exp_id
+   annotations_path = os.path.join(dataset_path, "annotations/")
+   register_coco_instances(
+       f"lifeplan_{exp_id}_train",
+       {},
+       os.path.join(annotations_path, "instances_train2017.json"),
+       os.path.join(dataset_path, "train2017"),
+   )
+   if args.eval_only:
+    register_coco_instances(
+        f"lifeplan_{exp_id}_test",
+        {},
+       os.path.join(annotations_path, "instances_test2017.json"),
+       os.path.join(dataset_path, "test2017"), ## NOTE: we generally do not want to test on the tiled test set
+    )
+   else: 
+    register_coco_instances(
+        f"lifeplan_{exp_id}_valid",
+        {},
+        os.path.join(annotations_path, "instances_val2017.json"),
+        os.path.join(dataset_path, "val2017"),
+    )
 
 def main(args):
+    register_custom_coco_dataset(args) # REGISTER CUSTOM COCO DATA -> disable during inference
     cfg = LazyConfig.load(args.config_file)
     cfg = LazyConfig.apply_overrides(cfg, args.opts)
     default_setup(cfg, args)
@@ -125,8 +154,30 @@ def main(args):
         do_train(args, cfg)
 
 
+<<<<<<< HEAD
 def invoke_main() -> None:
     args = default_argument_parser().parse_args()
+=======
+if __name__ == "__main__":
+    parser = default_argument_parser()
+    parser.add_argument(
+        '--dataset_path', 
+        type=str, 
+        default="/h/jquinto/Mask-RCNN/datasets/lifeplan/",
+        help="Path to the dataset directory containing annotations and images"
+    )
+    parser.add_argument(
+        '--exp_id', 
+        # type=int, 
+        # default=256,
+        help="Identifier string -- tile size for training model if no SR is applied, or SR method if SR is applied; must be updated in argument cfg.DATASETS.TRAIN as well"
+    )
+    args = parser.parse_args()
+    port = random.randint(1000, 20000)
+    args.dist_url = 'tcp://127.0.0.1:' + str(port)
+    print("Command Line Args:", args)
+    print("pwd:", os.getcwd())
+>>>>>>> local_dev_mask_rcnn/massid45
     launch(
         main,
         args.num_gpus,
