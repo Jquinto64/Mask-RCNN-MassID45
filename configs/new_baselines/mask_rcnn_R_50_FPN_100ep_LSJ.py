@@ -11,9 +11,9 @@ from ..common.optim import AdamW as optimizer
 from ..common.train import train
 
 # train from scratch
-# train.init_checkpoint = "/h/jquinto/Mask-RCNN/model_final_f96b26.pkl" # R101
-# train.init_checkpoint = "/h/jquinto/Mask-RCNN/model_final_f1362d.pkl" # RegNetX
-train.init_checkpoint = "/h/jquinto/Mask-RCNN/model_final_14d201.pkl" # R50 model
+# train.init_checkpoint = "model_final_f96b26.pkl" # R101
+# train.init_checkpoint = "model_final_f1362d.pkl" # RegNetX
+train.init_checkpoint = "model_final_14d201.pkl" # R50 model
 train.amp.enabled = True
 train.ddp.fp16_compression = True
 train.checkpointer=dict(period=4885, max_to_keep=100)  # options for PeriodicCheckpointer
