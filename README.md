@@ -84,11 +84,11 @@ cp sahi_modifications/detectron2.py /miniconda/envs/mask_rcnn/lib/python3.8/site
 cp sahi_modifications/annotation.py /miniconda/envs/mask_rcnn/lib/python3.8/site-packages/sahi/annotation.py
 ```
 ## Instructions for Inference on your Images
-1.  First download the MS-COCO pretrained R50 checkpoint using
+1.  First download the MS-COCO pretrained R50 checkpoint and place it in this folder:
 ```bash
 wget https://dl.fbaipublicfiles.com/detectron2/new_baselines/mask_rcnn_R_50_FPN_400ep_LSJ/42019571/model_final_14d201.pkl
 ``` 
-and place it in this folder.
+
 2. Download the model checkpoints from [Zenodo](https://zenodo.org/records/15479862/files/model_checkpoints.zip?download=1). This submodule is for Mask R-CNN so use `model_final_mask_rcnn.pth`.
 3. Run `standalone_inference.py` as follows:
 ```bash
