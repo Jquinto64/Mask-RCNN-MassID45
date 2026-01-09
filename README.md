@@ -47,7 +47,7 @@ cp sahi_modifications/detectron2.py /home/your_name/projects/your_aip_project/yo
 cp sahi_modifications/annotation.py /home/your_name/projects/your_aip_project/your_name/virtualenvs/$ENV_NAME/lib/python3.10/site-packages/sahi/annotation.py
 
 ```
-##### OPTION 2: If your cluster supports arbitrary package versions
+#### OPTION 2: If your cluster supports arbitrary package versions
 ```bash
 conda create --name mask_rcnn python=3.8 -y
 conda activate mask_rcnn
